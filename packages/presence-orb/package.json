@@ -1,0 +1,48 @@
+{
+  "name": "@maceip/presence-orb",
+  "version": "0.1.0",
+  "description": "Animated WebGPU presence orb with a separate label and dynamic named attractors",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maceip/shaders.git",
+    "directory": "packages/presence-orb"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "shaders-core": "workspace:*",
+    "@types/react": "^18.2.0",
+    "react": "^19.0.0",
+    "vite": "npm:rolldown-vite@7.1.16",
+    "typescript": "^5.7.2"
+  }
+}

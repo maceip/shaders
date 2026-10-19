@@ -134,6 +134,7 @@ import { componentDefinition as Plastic } from './shaders/Plastic/index'
 import { componentDefinition as PolarCoordinates } from './shaders/PolarCoordinates/index'
 import { componentDefinition as Polygon } from './shaders/Polygon/index'
 import { componentDefinition as Posterize } from './shaders/Posterize/index'
+import { componentDefinition as PresenceOrb } from './shaders/PresenceOrb/index'
 import { componentDefinition as Prism } from './shaders/Prism/index'
 import { componentDefinition as ProgressiveBlur } from './shaders/ProgressiveBlur/index'
 import { componentDefinition as RadialGradient } from './shaders/RadialGradient/index'
@@ -354,6 +355,7 @@ const createShaderRegistry = (): Record<string, ShaderRegistryEntry> => {
     PolarCoordinates,
     Polygon,
     Posterize,
+    PresenceOrb,
     Prism,
     ProgressiveBlur,
     RadialGradient,

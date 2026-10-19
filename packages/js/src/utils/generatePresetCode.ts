@@ -2090,6 +2090,38 @@ const shaderMetadata: Record<string, Record<string, any>> = {
     "blendMode": "normal",
     "intensity": 5
   },
+  "PresenceOrb": {
+    "opacity": 1,
+    "blendMode": "normal",
+    "center": {
+      "x": 0.47,
+      "y": 0.52
+    },
+    "radius": 0.16,
+    "formation": 1,
+    "energy": 0,
+    "deformation": 1,
+    "drift": 1,
+    "vapor": 1,
+    "grain": 0.025,
+    "speed": 1,
+    "phase": 0,
+    "targetA": {
+      "x": 0.7,
+      "y": 0.32
+    },
+    "targetB": {
+      "x": 0.23,
+      "y": 0.72
+    },
+    "targetC": {
+      "x": 0.7,
+      "y": 0.32
+    },
+    "strengthA": 0,
+    "strengthB": 0,
+    "strengthC": 0
+  },
   "Prism": {
     "opacity": 1,
     "blendMode": "normal",
@@ -3470,6 +3502,7 @@ export const availableComponents = [
   'PolarCoordinates',
   'Polygon',
   'Posterize',
+  'PresenceOrb',
   'Prism',
   'ProgressiveBlur',
   'RadialGradient',

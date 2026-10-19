@@ -272,6 +272,7 @@ const componentMap: Record<string, LazyExoticComponent<ComponentType<any>>> = {
   PolarCoordinates: lazy(() => import('../components/PolarCoordinates')),
   Polygon: lazy(() => import('../components/Polygon')),
   Posterize: lazy(() => import('../components/Posterize')),
+  PresenceOrb: lazy(() => import('../components/PresenceOrb')),
   Prism: lazy(() => import('../components/Prism')),
   ProgressiveBlur: lazy(() => import('../components/ProgressiveBlur')),
   RadialGradient: lazy(() => import('../components/RadialGradient')),

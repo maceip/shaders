@@ -29,7 +29,8 @@
   "scripts": {
     "lib:build": "turbo run shaders#build",
     "test": "pnpm --filter shaders-core test:run",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "presence:build": "pnpm --filter shaders-core build && pnpm --filter @maceip/presence-orb build"
   },
   "engines": {
     "node": "22.20.x",

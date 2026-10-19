@@ -125,6 +125,24 @@ importers:
         specifier: ^4.0.0
         version: 4.5.4(@types/node@24.10.3)(rollup@4.62.2)(typescript@5.9.3)(vite@6.4.1(@types/node@24.10.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.20.6)(yaml@2.9.0))
 
+  packages/presence-orb:
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.26
+      react:
+        specifier: ^19.0.0
+        version: 19.2.0
+      shaders-core:
+        specifier: workspace:*
+        version: link:../core
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: npm:rolldown-vite@7.1.16
+        version: rolldown-vite@7.1.16(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@types/node@24.10.3)(esbuild@0.25.10)(jiti@2.7.0)(terser@5.48.0)(tsx@4.20.6)(yaml@2.9.0)
+
   packages/react:
     dependencies:
       react:

@@ -700,6 +700,11 @@
       "import": "./dist/shaders/Posterize/index.js",
       "require": "./dist/shaders/Posterize/index.js"
     },
+    "./PresenceOrb": {
+      "types": "./dist/shaders/PresenceOrb/index.d.ts",
+      "import": "./dist/shaders/PresenceOrb/index.js",
+      "require": "./dist/shaders/PresenceOrb/index.js"
+    },
     "./Prism": {
       "types": "./dist/shaders/Prism/index.d.ts",
       "import": "./dist/shaders/Prism/index.js",

@@ -84,6 +84,40 @@ describe('uniformStore — schema inference (§2.2/§5.2)', () => {
 })
 
 describe('uniformStore — FieldHandle scalar coalesce/flush', () => {
+    it('uploads dense edits to a small buffer once, preserving untouched fields and padding', () => {
+        const {root, buffer} = mockRoot()
+        const store = createUniformStore(root)
+        const fields = Array.from({length: 9}, (_, i) => ({name: `v${i}`, initial: i}))
+        const handles = store.defineNode('orb', fields) as Record<string, FieldHandle>
+        store.finalize()
+        const initial = buffer.write.mock.calls[0][0]
+        buffer.write.mockClear()
+        for (let i = 0; i < 8; i++) handles[`v${i}`].value = 100 + i
+        store.flush()
+        expect(buffer.patch).not.toHaveBeenCalled()
+        expect(buffer.write).toHaveBeenCalledExactlyOnceWith({
+            ...initial,
+            n_orb: {...initial.n_orb, ...Object.fromEntries(fields.slice(0, 8).map((f, i) => [f.name, 100 + i]))},
+        })
+        store.flush()
+        expect(buffer.write).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps sparse scalar updates for larger buffers', () => {
+        const {root, buffer} = mockRoot()
+        const store = createUniformStore(root)
+        const fields = Array.from({length: 300}, (_, i) => ({name: `v${i}`, initial: i}))
+        const handles = store.defineNode('large', fields) as Record<string, FieldHandle>
+        store.finalize()
+        buffer.write.mockClear()
+        for (let i = 0; i < 8; i++) handles[`v${i}`].value = 100 + i
+        store.flush()
+        expect(buffer.write).not.toHaveBeenCalled()
+        expect(buffer.patch).toHaveBeenCalledExactlyOnceWith({
+            n_large: Object.fromEntries(fields.slice(0, 8).map((f, i) => [f.name, 100 + i])),
+        })
+    })
+
     it('coalesces multiple scalar writes into ONE merged patch', () => {
         const {root, buffer} = mockRoot()
         const store = createUniformStore(root)

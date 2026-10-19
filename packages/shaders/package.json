@@ -1276,6 +1276,11 @@
       "types": "./dist/core/shaders/Satin/index.d.ts",
       "import": "./dist/core/shaders/Satin/index.js",
       "require": "./dist/core/shaders/Satin/index.js"
+    },
+    "./core/PresenceOrb": {
+      "types": "./dist/core/shaders/PresenceOrb/index.d.ts",
+      "import": "./dist/core/shaders/PresenceOrb/index.js",
+      "require": "./dist/core/shaders/PresenceOrb/index.js"
     }
   },
   "typesVersions": {
@@ -1726,6 +1731,9 @@
       ],
       "core/Posterize": [
         "./dist/core/shaders/Posterize/index.d.ts"
+      ],
+      "core/PresenceOrb": [
+        "./dist/core/shaders/PresenceOrb/index.d.ts"
       ],
       "core/Prism": [
         "./dist/core/shaders/Prism/index.d.ts"

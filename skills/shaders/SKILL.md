@@ -142,7 +142,7 @@ Four trees that cover most requests. Props are real; change the values, keep the
 ## Picking components
 
 <!-- catalog:start -->
-200 components, by category:
+201 components, by category:
 
 - **Textures** (55): Aurora, Beam, Blob, BlockNoise, BlueNoise, BrickPattern, Checkerboard, Chevron, ColorWheel, ConicGradient, CurlNoise, DiamondGradient, DotGrid, ErosionNoise, FallingLines, FloatingParticles, FlowingGradient, FractalNoise, GaborNoise, Godrays, Grid, HexGrid, HTMLInCanvas, ImageTexture, IsometricCubes, LinearGradient, Marble, MeshGradient, MultiPointGradient, PerlinNoise, Plasma, Prism, RadialGradient, Ripples, Satin, Scratches, SimplexNoise, SineWave, SolidColor, Spiral, Strands, Stripes, StudioBackground, SunBurst, Swirl, Text, TriangularGrid, Truchet, VideoTexture, Voronoi, Waveform, WaveletNoise, Weave, WebcamTexture, WorleyNoise
 - **Shapes** (16): Arc, Circle, Crescent, Cross, Ellipse, Flower, Heart, Line, Parallelogram, Polygon, Ring, RoundedRect, Star, Teardrop, Trapezoid, Vesica
@@ -151,7 +151,7 @@ Four trees that cover most requests. Props are real; change the values, keep the
 - **Distortions** (22): BarShift, Bend, Bulge, ConcentricSpin, CornerPin, DisplacementMap, Flip, FlowField, FlutedGlass, Form3D, GlassTiles, Kaleidoscope, Mirror, Perspective, PolarCoordinates, RectangularCoordinates, Repeater, Spherize, Stretch, Surface3D, Twirl, WaveDistortion
 - **Adjustments** (14): BrightnessContrast, Duotone, Exposure, FilmStock, Grayscale, HueShift, Invert, Posterize, Saturation, Sharpness, Solarize, Tint, Tritone, Vibrance
 - **Stylize** (31): Ascii, Chalkboard, ChromaticAberration, CompressionArtifacts, ContourLines, CRTScreen, DataMosh, Dither, DropShadow, Engraving, FilmGrain, Glitch, Glow, GradientMap, Halftone, KeyFrames, LensDistortion, LensFlare, LightLeak, ObjectTracker, Paper, ParticleField, Pixelate, ReflectivePlane, Sparkle, Stone, TimeTrail, VHS, Vignette, Watercolor, Wool
-- **Interactive** (16): Boids, ChromaFlow, CursorRipples, CursorTrail, Fog, GridDistortion, InkFlow, Liquify, MagneticFilings, ParticleFlow, PixelSort, PixelThrow, ReactionDiffusion, Shatter, Smoke, SmokeFlow
+- **Interactive** (17): Boids, ChromaFlow, CursorRipples, CursorTrail, Fog, GridDistortion, InkFlow, Liquify, MagneticFilings, ParticleFlow, PixelSort, PixelThrow, PresenceOrb, ReactionDiffusion, Shatter, Smoke, SmokeFlow
 - **Transitions** (13): BarnDoors, BlockDissolve, CheckerWipe, DiamondWipe, IrisWipe, LinearWipe, NoiseDissolve, PagePeel, RadialWipe, RandomBars, RippleWipe, SliceWipe, VenetianBlinds
 - **Utilities** (1): Group
 <!-- catalog:end -->

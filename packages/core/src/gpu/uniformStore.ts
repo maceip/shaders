@@ -605,7 +605,7 @@ export interface UniformStore {
      * values. Idempotent — returns the cached result on subsequent calls.
      */
     finalize(): FinalizeResult
-    /** Coalesced flush — one `buffer.patch(...)` for every field touched since the last flush. */
+    /** Coalesced flush; dense edits to a small buffer use one whole-buffer upload. */
     flush(): void
     /** Whole-buffer write fallback (`buffer.write(...)`). */
     writeAll(): void
@@ -663,6 +663,7 @@ export function createUniformStore(root: TgpuRoot, options: UniformStoreOptions 
     }
 
     let finalized: FinalizeResult | undefined
+    let compactBuffer = false
 
     function buildHandles(key: string, fields: FieldInit[]): {handles: NodeHandles; struct: WgslStruct} {
         const handles: NodeHandles = {}
@@ -850,6 +851,7 @@ export function createUniformStore(root: TgpuRoot, options: UniformStoreOptions 
             // symptom is a pile of validation errors and a blank canvas that names no cause.
             // Check it up front and say exactly what happened instead.
             const combinedSize = d.sizeOf(combined)
+            compactBuffer = combinedSize <= 1024
             const bindingCap = root.device?.limits?.maxUniformBufferBindingSize
             const cap = typeof bindingCap === 'number' && bindingCap > 0 ? bindingCap : 65536
             if (combinedSize > cap) {
@@ -879,6 +881,14 @@ export function createUniformStore(root: TgpuRoot, options: UniformStoreOptions 
         flush() {
             if (!finalized) return
             if (dirtyScalars.size === 0 && dirtyArrays.size === 0) return
+            // TypeGPU's sparse patch becomes several queue.writeBuffer calls
+            // when the dirty fields occupy separate byte ranges. For a tiny
+            // animated composition, one <=1 KiB upload costs less driver work
+            // than those calls. Keep sparse writes for arrays and larger stores.
+            if (compactBuffer && dirtyArrays.size === 0 && dirtyScalars.size >= 8) {
+                this.writeAll()
+                return
+            }
             const patch: Record<string, Record<string, unknown>> = {}
             const bucket = (key: string) => (patch[key] ??= {})
 
