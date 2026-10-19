@@ -64,11 +64,12 @@ setters do not echo this callback, preventing update loops.
   displacement modulates that attractor's energy extraction and slightly shifts
   its stream color. The removal button wobbles with the object. Dragging and arrow keys do not reposition it. Layout changes
   are programmatic only (`x`/`y`). The short interaction loop stops when settled.
-- Each beam has a pseudorandom profile seeded by its stable ID: independent
-  particle births, speed, width, curvature and turbulence. Renaming or reordering
-  records preserves their beam identity. Six GPU parcels per active beam keep
-  the existing particle budget. Packets share a continuous curved streamline
-  and overlap along it; random density does not introduce angular path joins.
+- Each stream has a pseudorandom profile seeded by its stable ID: independent
+  speed, width, curvature and turbulence. Renaming or reordering records
+  preserves its identity. Two layers of smoothly interpolated density move
+  outward through a converging flow, forming soft folds of vapor that stretch
+  and dissipate near the attractor. The shader computes the motion on the GPU;
+  there is no particle simulation or per-frame CPU geometry update.
 - Attractor pill surfaces, rims and glow receive the incoming beam's current
   emission color in the same GPU pass. Their text remains readable and accessible
   in the DOM. Layout measurements update only on resize/label changes; there is

@@ -1,6 +1,6 @@
 {
   "name": "@maceip/presence-orb",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Animated WebGPU presence orb with a separate label and dynamic named attractors",
   "type": "module",
   "license": "MIT",

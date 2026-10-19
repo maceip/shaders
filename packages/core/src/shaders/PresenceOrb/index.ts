@@ -196,51 +196,55 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
                 directedLight += targetColor * weight * max(lightWeights[i], 0.0) * (pow(facing, 5.0) * (0.12 + 1.30 * grazing));
                 // The surface feeds the same outward phase. A moving dark wake
                 // follows each lifted streak; the sphere remains a shaded volume.
-                let extractionPulse = 0.5 + 0.5 * sin(-(t * beamRate + beamPhase) * 37.6991);
+                let extractionPulse = 0.5 + 0.5 * sin(-t * beamRate * 3.8 + beamPhase);
                 let sourcePatch = pow(facing, 7.0) * pow(radial, 2.0);
                 depletion += weight * vapor * sourcePatch * (0.20 + 0.24 * extractionPulse);
                 liftedLight += mix(targetColor, vec3f(1.0), 0.25) * weight * vapor * sourcePatch * (0.08 + 0.30 * grazing) * (1.0 - extractionPulse);
             }
 
-            // Every packet follows the same smooth streamline. Independently
-            // displaced packet centers used to create angular joins between
-            // bright lobes; coherent advection keeps the plume continuous.
-            let source = 0.84;
-            let reach = max(targetDistance - source, 0.25);
-            let flowProgress = clamp((along - source) / reach, 0.0, 1.0);
-            let travel = flowProgress * 3.0 - t * beamRate * 4.2 + beamPhase;
-            let bend = beamBend * 0.6 + 0.065 * beamCurl * sin(t * beamRate * 0.6 + beamPhase);
-            let pathBend = sin(flowProgress * 3.14159) * (bend + 0.035 * beamCurl * sin(travel));
-            let baseWidth = mix(0.40, 0.13, flowProgress) * beamWidth * (0.94 + 0.06 * sin(travel));
-            let axisDistance = across - pathBend;
-            let curl = 0.08 * beamCurl * sin(travel * 0.7 + beamPhase);
-            let lateral = axisDistance / baseWidth + curl;
-            let envelope = exp(-lateral * lateral);
-            let diffuse = exp(-lateral * lateral * 0.42);
-            let wisps = 0.84 + 0.16 * cos(lateral * 2.3 + travel * 0.55);
-            let interval = smoothstep(0.64, 1.02, along) * (1.0 - smoothstep(targetDistance, targetDistance + 0.25, along));
+            // A sheet of vapor lifts from an arc of the surface. Its material
+            // coordinate travels outwards and stretches as it approaches the
+            // sink; mottled folds move through it instead of a solid cone or a
+            // chain of independently displaced particle centers.
+            let source = 0.62;
+            let reach = max(targetDistance - source, 0.4);
+            let progress = clamp((along - source) / reach, 0.0, 1.0);
+            let interval = smoothstep(0.38, 0.86, along) * (1.0 - smoothstep(targetDistance, targetDistance + 0.20, along));
             let outside = 1.0 - coverage * solid;
-            var transported = 0.0;
             if (interval > 0.0 && outside > 0.0) {
-              for (var parcel = 0; parcel < 6; parcel++) {
-                // Random births affect density and length, not disconnected
-                // side-to-side paths. Overlap grows with travel distance so
-                // long connections cannot separate into a chain of blobs.
-                let clock = t * beamRate + f32(parcel) / 6.0 + beamPhase;
-                let age = fract(clock);
-                let seed = f32(parcel) * 1.618 + beamPhase * 4.73 + floor(clock) * 7.19;
-                let random = fract(sin(seed * 12.9898) * 43758.5453);
-                let advance = age * (0.7 + 0.3 * age);
-                let parcelAlong = source + reach * advance;
-                let overlap = (0.12 + 0.12 * advance) * reach + 0.12;
-                let forward = (along - parcelAlong) / (overlap * (0.9 + random * 0.2));
-                let spread = 0.9 + random * 0.2;
-                let volume = exp(-forward * forward - lateral * lateral / (spread * spread));
-                let lifetime = smoothstep(0.0, 0.12, age) * (1.0 - smoothstep(0.84, 1.0, age));
-                transported += volume * wisps * lifetime * (0.55 + random * 0.25);
-              }
+                let travel = log(1.0 + progress * 3.0) * 2.6 - t * beamRate * 3.8 + beamPhase;
+                let bend = beamBend * sin(progress * 3.14159);
+                let width = mix(0.70, 0.18, progress) * (0.72 + 0.28 * beamWidth);
+                let lateral = (across - bend) / width;
+                let roll = sin(travel * 0.85 + beamPhase + lateral * 0.6);
+                let folded = lateral + (0.18 + 0.12 * beamCurl) * roll;
+                var field = vec2f(travel * 1.1, lateral * 1.35 + beamPhase * 2.7);
+                field += vec2f(0.38 * sin(lateral * 1.7 + travel * 0.6), 0.40 * sin(travel * 0.9 + lateral * 0.8));
+                var density = 0.0;
+                var amplitude = 0.67;
+                // Smooth value noise supplies irregular, advected density. It
+                // modulates a volume, never a polyline or separate bright joins.
+                for (var octave = 0; octave < 2; octave++) {
+                    let cell = floor(field);
+                    let fraction = fract(field);
+                    let blend = fraction * fraction * fraction * (fraction * (fraction * 6.0 - 15.0) + 10.0);
+                    // Compute shared corners in the same arithmetic order on
+                    // both sides of a cell, including at negative coordinates.
+                    let corners = vec4f(cell.x, cell.x + 1.0, cell.x, cell.x + 1.0) * 127.1
+                        + vec4f(cell.y, cell.y, cell.y + 1.0, cell.y + 1.0) * 311.7;
+                    let values = fract(sin(corners) * 43758.5453);
+                    density += mix(mix(values.x, values.y, blend.x), mix(values.z, values.w, blend.x), blend.y) * amplitude;
+                    field = field * 2.03 + vec2f(13.7, 7.9);
+                    amplitude *= 0.5;
+                }
+                let veil = exp(-folded * folded * (0.9 + 0.5 * density));
+                let fold = 0.5 + 0.5 * sin(lateral * 3.1 + density * 4.0 + travel * 0.7);
+                let folds = 0.80 + 0.20 * fold * fold;
+                let fog = smoothstep(0.12, 0.86, density);
+                let dissipation = mix(1.0, 0.22, progress * progress);
+                let volume = veil * (0.015 + 0.70 * fog * fog * folds) * dissipation;
+                plumes += targetColor * weight * vapor * volume * interval * outside * (0.7 + 0.3 * clamp(lightWeights[i], 0.0, 1.0));
             }
-            plumes += targetColor * weight * vapor * (0.06 * envelope + 0.05 * diffuse + 0.28 * transported) * interval * outside * (0.7 + 0.3 * clamp(lightWeights[i], 0.0, 1.0));
             let hazeDistance = q - destination * 0.74;
             broadGlow += targetColor * weight * exp(-dot(hazeDistance, hazeDistance) * 3.1) * 0.075;
         }
