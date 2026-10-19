@@ -6,3 +6,7 @@ canvas{display:block;width:100%;height:100%;position:absolute;inset:0}.label{pos
 button{font:inherit;cursor:pointer}.target{display:block;max-width:100%;border:1px solid #ffffff40;border-radius:24px;padding:.65em 1em;min-height:36px;background:var(--presence-accent);color:#17121d;font-weight:550;box-shadow:0 0 22px #bf9acb35;white-space:normal;overflow-wrap:anywhere;touch-action:manipulation;user-select:none}
 .target:focus-visible,.remove:focus-visible{outline:2px solid white;outline-offset:4px}.remove{position:absolute;right:-9px;top:-12px;width:28px;height:28px;border:1px solid #ffffff30;border-radius:50%;padding:0;background:#28252e;color:white;font-size:19px;line-height:1}.remove[hidden]{display:none}.status{position:absolute;inset:auto 8% 7%;margin:0;text-align:center;font-size:13px;line-height:1.4;color:#d0c6d6}.status[hidden]{display:none}
 @media(max-width:420px){.target{min-height:36px;padding:.6em .75em}.remove{width:28px;height:28px}}
+
+/* GPU-painted surfaces use the actual incident beam light. DOM retains text,
+   focus, hit areas and the attached removal control. Neutral while unavailable. */
+:host([data-state="ready"]) .target{background:transparent;border-color:transparent;box-shadow:none}

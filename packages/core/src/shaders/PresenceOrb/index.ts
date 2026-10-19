@@ -131,17 +131,20 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
         var broadGlow = vec3f(0.0);
         var depletion = 0.0;
         var liftedLight = vec3f(0.0);
+        ${dynamic ? 'var targetPaint = vec4f(0.0);' : ''}
         let targets = array<vec2f, ${suffixes.length}>(${suffixes.map(s => 'target' + s).join(', ')});
         let weights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'strength' + s).join(', ')});
         let lightWeights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'light' + s).join(', ')});
         ${dynamic ? `let responses = array<f32, ${suffixes.length}>(${suffixes.map(s => 'response' + s).join(', ')});` : ''}
         ${Object.entries(beamDefaults).map(([name, value]) => `let ${name}s = array<f32, ${suffixes.length}>(${suffixes.map((s, i) => dynamic ? name + s : value(i).toFixed(6)).join(', ')});`).join('\n')}
+        ${dynamic ? `let targetSizes = array<vec2f, ${suffixes.length}>(${suffixes.map(s => `vec2f(targetWidth${s}, targetHeight${s})`).join(', ')});
+        let targetCorners = array<f32, ${suffixes.length}>(${suffixes.map(s => 'targetCorner' + s).join(', ')});` : ''}
         // This loop evaluates active analytic vapor fields on the GPU. It does
         // not read or process any GIF, image or frame data.
         for (var i = 0; i < ${dynamic ? `min(i32(attractorCount), ${suffixes.length})` : suffixes.length}; i++) {
             let response = ${dynamic ? 'clamp(responses[i], -1.0, 1.0)' : '0.0'};
             let weight = clamp(weights[i], 0.0, 1.0) * (1.0 + response * 0.32);
-            if (weight == 0.0) { continue; }
+            ${dynamic ? '' : 'if (weight == 0.0) { continue; }'}
             let beamPhase = beamPhases[i];
             let beamRate = beamRates[i];
             let beamWidth = beamWidths[i];
@@ -161,6 +164,29 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
             let sourceAmber = 0.5 + 0.5 * sin(sourceAngle + 0.3 + 0.28 * cos(t * 0.52));
             let energizedColor = mix(mix(pink, cyan, pow(sourceBlue, 2.0)), amber, pow(sourceAmber, 6.0) * 0.8);
             let targetColor = mix(mix(warmLight, cyan, hue), energizedColor, power);
+            ${dynamic ? `// The label surface receives this beam's actual emission color.
+            // Its DOM text and removal control share the same anchored wobble.
+            let halfSize = targetSizes[i] * vec2f(aspect, 1.0) / (2.0 * unit);
+            if (halfSize.x > 0.0 && halfSize.y > 0.0) {
+                let pillPoint = (uv - targets[i]) * vec2f(aspect, 1.0) / unit;
+                let rotation = response * 0.12217305;
+                let local = vec2f(cos(rotation) * pillPoint.x + sin(rotation) * pillPoint.y,
+                    -sin(rotation) * pillPoint.x + cos(rotation) * pillPoint.y)
+                    / vec2f(1.0 + response * 0.065, 1.0 - response * 0.045);
+                let corner = min(targetCorners[i] / unit, min(halfSize.x, halfSize.y));
+                let rounded = abs(local) - halfSize + vec2f(corner);
+                let pillDistance = length(max(rounded, vec2f(0.0))) + min(max(rounded.x, rounded.y), 0.0) - corner;
+                let pixel = 1.0 / (viewport.y * unit);
+                let fill = 1.0 - smoothstep(-pixel, pixel, pillDistance);
+                let incidence = clamp(weight * lightWeights[i] * solid, 0.0, 1.0);
+                let tint = mix(vec3f(0.77, 0.75, 0.80), mix(targetColor, vec3f(0.98), 0.35), incidence * 0.92);
+                let rim = (1.0 - smoothstep(0.0, pixel * 2.0, abs(pillDistance))) * 0.18;
+                let glow = exp(-max(pillDistance, 0.0) * 12.0) * incidence * 0.13 * (1.0 - fill);
+                let alpha = fill + glow;
+                let paint = mix(tint, vec3f(1.0), rim) * fill + targetColor * glow;
+                targetPaint = vec4f(paint + targetPaint.rgb * (1.0 - alpha), alpha + targetPaint.a * (1.0 - alpha));
+            }` : ''}
+            if (weight == 0.0) { continue; }
             if (coverage > 0.0 && solid > 0.0) {
                 let lightAxis = normalize(vec3f(direction, 0.17));
                 let facing = max(0.0, dot(surface, lightAxis));
@@ -245,6 +271,7 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
         let grainValue = fract(sin(dot(pixels, vec2f(12.9898, 78.233)) + floor(t * 10.0) * 17.17) * 43758.5453) - 0.5;
         let visibility = smoothstep(0.0, 0.08, max(rgb.r, max(rgb.g, rgb.b)));
         rgb = max(vec3f(0.0), rgb + vec3f(grainValue * grain * visibility));
+        ${dynamic ? 'rgb = rgb * (1.0 - targetPaint.a) + targetPaint.rgb;' : ''}
         let alpha = mix(clamp(max(rgb.r, max(rgb.g, rgb.b)) * 3.0 + coverage * solid, 0.0, 1.0), 1.0, clamp(backgroundAlpha, 0.0, 1.0));
         // The preceding art-direction values are display RGB. The shared
         // renderer expects linear light and performs the final display transfer.
@@ -268,6 +295,9 @@ export function createPresenceOrbDefinition(capacity = 16): GpuShaderDefinition 
         props['strength' + suffix] = {default: 0}
         props['light' + suffix] = {default: 1}
         props['response' + suffix] = {default: 0}
+        props['targetWidth' + suffix] = {default: 0}
+        props['targetHeight' + suffix] = {default: 0}
+        props['targetCorner' + suffix] = {default: 0}
         for (const [name, value] of Object.entries({beamPhase: Number(suffix) * 2.31, beamRate: .42, beamWidth: 1, beamBend: .08, beamCurl: 1})) props[name + suffix] = {default: value}
     }
     return defineShader({

@@ -68,6 +68,11 @@ setters do not echo this callback, preventing update loops.
   particle births, speed, width, curvature and turbulence. Renaming or reordering
   records preserves their beam identity. Six GPU parcels per active beam keep
   the existing particle budget.
+- Attractor pill surfaces, rims and glow receive the incoming beam's current
+  emission color in the same GPU pass. Their text remains readable and accessible
+  in the DOM. Layout measurements update only on resize/label changes; there is
+  no GPU readback or extra CPU color-animation loop. Zero strength/light gives a
+  neutral surface. Pausing freezes both the beam and its label illumination.
 - `removable`: default true; controls accessible removal.
 - `paused`: initial state. `pause()`/`resume()` control animation. The component
   stops animating offscreen, in a hidden document, and for reduced-motion users.
@@ -85,7 +90,7 @@ setters do not echo this callback, preventing update loops.
 Use a container with a real width. Default scene aspect ratio is 710/640. Styles
 live in a shadow root, so dashboard button/reset styles cannot alter the scene.
 Customize inherited CSS variables `--presence-background`, `--presence-text`,
-`--presence-accent`, `--presence-radius`, `--presence-aspect-ratio`, and
+`--presence-accent` (neutral loading/unavailable surface), `--presence-radius`, `--presence-aspect-ratio`, and
 `--presence-font`, or `::part(label)`, `::part(target)`, `::part(remove)`.
 The canvas follows the displayed size and device pixel ratio. Rendering quality
 is not automatically degraded when attractors are added.

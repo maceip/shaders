@@ -127,6 +127,23 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         if (paused || reduced || document.hidden || !inView || appearance.speed === 0) renderer.stopAnimation()
         else renderer.startAnimation()
     }
+    // Measure only when layout changes. The GPU paints each pill using the
+    // same emission color and clock as its incoming beam; no readback or DOM
+    // color-animation loop is needed.
+    function syncTargetSizes() {
+        if (disposed || !initialized) return
+        const width = scene.clientWidth, height = scene.clientHeight
+        if (!width || !height) return
+        items.forEach((item, index) => {
+            const button = buttons.get(item.id)?.button
+            if (!button) return
+            write(`targetWidth${index}`, button.offsetWidth / width)
+            write(`targetHeight${index}`, button.offsetHeight / height)
+            write(`targetCorner${index}`, Math.min(24, button.offsetWidth / 2, button.offsetHeight / 2) / height)
+        })
+    }
+    const controlObserver = new ResizeObserver(syncTargetSizes)
+    controlObserver.observe(scene)
     function syncUniforms() {
         write('attractorCount', items.length)
         items.forEach((item, index) => {
@@ -137,7 +154,7 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
             for (const [name, value] of Object.entries(beamProfile(item.id))) write(`${name}${index}`, value)
         })
         write('energy', appearance.energy); write('formation', appearance.formation)
-        syncAnimation()
+        syncTargetSizes(); syncAnimation()
     }
     function makeControl(id: string) {
         const container = document.createElement('div'); container.className = 'attractor'; container.dataset.attractorId = id; container.setAttribute('part', 'attractor')
@@ -155,11 +172,11 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
             if (item) options.onSelect?.({...item})
         }
         motion.append(button, remove); container.append(motion); controls.append(container)
-        const control = {container, motion, button, remove}; buttons.set(id, control); return control
+        const control = {container, motion, button, remove}; buttons.set(id, control); controlObserver.observe(button); return control
     }
     function renderControls() {
         const active = new Set(items.map(item => item.id))
-        for (const [id, control] of buttons) if (!active.has(id)) {resetWobble(id); control.container.remove(); buttons.delete(id)}
+        for (const [id, control] of buttons) if (!active.has(id)) {resetWobble(id); controlObserver.unobserve(control.button); control.container.remove(); buttons.delete(id)}
         for (const [index, item] of items.entries()) {
             const control = buttons.get(item.id) ?? makeControl(item.id)
             if (controls.children[index] !== control.container) controls.insertBefore(control.container, controls.children[index] ?? null)
@@ -232,7 +249,7 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         retry() {assertAlive(); return start()},
         destroy() {
             if (disposed) return
-            stopInteractions(); disposed = true; generation++; observer?.disconnect(); media.removeEventListener('change', syncAnimation)
+            stopInteractions(); disposed = true; generation++; controlObserver.disconnect(); observer?.disconnect(); media.removeEventListener('change', syncAnimation)
             document.removeEventListener('visibilitychange', syncAnimation); renderer?.cleanup(); renderer = null
             buttons.clear(); element.remove()
         },
