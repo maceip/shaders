@@ -125,10 +125,12 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
         let targets = array<vec2f, ${suffixes.length}>(${suffixes.map(s => 'target' + s).join(', ')});
         let weights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'strength' + s).join(', ')});
         let lightWeights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'light' + s).join(', ')});
+        ${dynamic ? `let responses = array<f32, ${suffixes.length}>(${suffixes.map(s => 'response' + s).join(', ')});` : ''}
         // This loop evaluates active analytic vapor fields on the GPU. It does
         // not read or process any GIF, image or frame data.
         for (var i = 0; i < ${dynamic ? `min(i32(attractorCount), ${suffixes.length})` : suffixes.length}; i++) {
-            let weight = clamp(weights[i], 0.0, 1.0);
+            let response = ${dynamic ? 'clamp(responses[i], -1.0, 1.0)' : '0.0'};
+            let weight = clamp(weights[i], 0.0, 1.0) * (1.0 + response * 0.32);
             if (weight == 0.0) { continue; }
             let destination = (targets[i] - center) * vec2f(aspect, 1.0) / unit - motion;
             let targetDistance = max(length(destination), 1.1);
@@ -139,7 +141,7 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
             let hue = pow(0.5 + 0.5 * sin(t * 0.945 - 0.46), 6.0);
             let redShift = 0.5 + 0.5 * sin(t * 1.9);
             let warmLight = mix(vec3f(0.95, 0.48, 0.91), vec3f(0.94, 0.23, 0.41), redShift * 0.55);
-            let sourceAngle = atan2(direction.y, direction.x) + colorPhase - 0.25 * sin(t * 0.43);
+            let sourceAngle = atan2(direction.y, direction.x) + response * 0.18 + colorPhase - 0.25 * sin(t * 0.43);
             let sourceBlue = 0.5 + 0.5 * sin(sourceAngle + 2.3 + 0.32 * sin(t * 0.62));
             let sourceAmber = 0.5 + 0.5 * sin(sourceAngle + 0.3 + 0.28 * cos(t * 0.52));
             let energizedColor = mix(mix(pink, cyan, pow(sourceBlue, 2.0)), amber, pow(sourceAmber, 6.0) * 0.8);
@@ -245,6 +247,7 @@ export function createPresenceOrbDefinition(capacity = 16): GpuShaderDefinition 
         props['target' + suffix] = {default: {x: 0.5, y: 0.5}, transform: transformPosition}
         props['strength' + suffix] = {default: 0}
         props['light' + suffix] = {default: 1}
+        props['response' + suffix] = {default: 0}
     }
     return defineShader({
         name: 'PresenceOrbDynamic' + capacity,

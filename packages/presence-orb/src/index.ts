@@ -16,7 +16,6 @@ export interface PresenceOrbOptions {
     formation?: number
     speed?: number
     paused?: boolean
-    draggable?: boolean
     removable?: boolean
     respectReducedMotion?: boolean
     onSelect?: (attractor: PositionedAttractor) => void
@@ -70,6 +69,45 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
     const media = matchMedia('(prefers-reduced-motion: reduce)')
     const buttons = new Map<string, {container: HTMLElement; button: HTMLButtonElement; remove: HTMLButtonElement}>()
     const uniformValues = new Map<string, unknown>()
+    // Only interacting controls get a short-lived host animation. Idle motion
+    // stays on the GPU; positions and source records are never changed.
+    const wobbles = new Map<string, {start: number; amplitude: number; response: number}>()
+    let interactionFrame = 0
+    const canAnimate = () => !disposed && initialized && !failed && !paused && !document.hidden && inView && appearance.speed > 0 && !(options.respectReducedMotion !== false && media.matches)
+    function resetWobble(id: string) {
+        const button = buttons.get(id)?.button
+        if (button) {button.style.removeProperty('transform'); button.style.removeProperty('filter')}
+        const index = items.findIndex(item => item.id === id)
+        if (index >= 0) write(`response${index}`, 0)
+        wobbles.delete(id)
+    }
+    function stopInteractions() {
+        cancelAnimationFrame(interactionFrame); interactionFrame = 0
+        for (const id of wobbles.keys()) resetWobble(id)
+    }
+    function animateInteractions(now: number) {
+        interactionFrame = 0
+        if (!canAnimate()) {stopInteractions(); return}
+        for (const [id, wobble] of wobbles) {
+            const elapsed = (now - wobble.start) / 1000
+            const index = items.findIndex(item => item.id === id)
+            const button = buttons.get(id)?.button
+            if (elapsed >= .9 || index < 0 || !button) {resetWobble(id); continue}
+            // A damped oscillation turns, compresses and relaxes around a fixed
+            // center. Its signed displacement also modulates that stream only.
+            const response = Math.sin(elapsed * 25) * Math.exp(-elapsed * 5) * wobble.amplitude
+            wobble.response = response
+            button.style.transform = `rotate(${response * 7}deg) scale(${1 + response * .065},${1 - response * .045})`
+            button.style.filter = `brightness(${1 + Math.abs(response) * .18}) hue-rotate(${response * 7}deg)`
+            write(`response${index}`, response)
+        }
+        if (wobbles.size) interactionFrame = requestAnimationFrame(animateInteractions)
+    }
+    function wobble(id: string, amplitude: number) {
+        if (!canAnimate()) return
+        wobbles.set(id, {start: performance.now(), amplitude, response: wobbles.get(id)?.response ?? 0})
+        if (!interactionFrame) interactionFrame = requestAnimationFrame(animateInteractions)
+    }
     const snapshot = () => items.map(item => ({...item}))
     const emit = () => options.onAttractorsChange?.(snapshot())
     const assertAlive = () => {if (disposed) throw new Error('PresenceOrb was destroyed')}
@@ -82,6 +120,7 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         renderer.updateUniformValue('orb', name, value)
     }
     function syncAnimation() {
+        if (!canAnimate()) stopInteractions()
         if (!initialized || !renderer || failed) return
         const reduced = options.respectReducedMotion !== false && media.matches
         write('speed', paused || reduced ? 0 : appearance.speed)
@@ -94,15 +133,10 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
             write(`target${index}`, {x: item.x, y: item.y})
             write(`strength${index}`, item.strength)
             write(`light${index}`, item.light)
+            write(`response${index}`, wobbles.get(item.id)?.response ?? 0)
         })
         write('energy', appearance.energy); write('formation', appearance.formation)
         syncAnimation()
-    }
-    function move(id: string, x: number, y: number) {
-        const index = items.findIndex(item => item.id === id)
-        if (index < 0) return
-        items[index] = {...items[index], x: Math.max(.04, Math.min(.96, x)), y: Math.max(.2, Math.min(.94, y))}
-        renderControls(); syncUniforms(); emit()
     }
     function makeControl(id: string) {
         const container = document.createElement('div'); container.className = 'attractor'; container.dataset.attractorId = id; container.setAttribute('part', 'attractor')
@@ -110,49 +144,27 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove'; remove.textContent = '×'; remove.setAttribute('part', 'remove')
         remove.hidden = options.removable === false
         remove.onclick = () => {api.removeAttractor(id); emit()}
-        let drag: {x: number; y: number; offsetX: number; offsetY: number; moved: boolean} | null = null
-        let suppressClick = false
-        button.onpointerdown = event => {
-            if (options.draggable === false || event.button !== 0) return
-            const item = items.find(item => item.id === id)!
-            const bounds = scene.getBoundingClientRect()
-            drag = {x: event.clientX, y: event.clientY, offsetX: event.clientX - bounds.left - item.x * bounds.width, offsetY: event.clientY - bounds.top - item.y * bounds.height, moved: false}
-            suppressClick = false
-            button.setPointerCapture(event.pointerId)
-        }
-        button.onpointermove = event => {
-            if (!drag) return
-            if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 3 && !drag.moved) return
-            drag.moved = true
-            const bounds = scene.getBoundingClientRect()
-            move(id, (event.clientX - bounds.left - drag.offsetX) / bounds.width, (event.clientY - bounds.top - drag.offsetY) / bounds.height)
-        }
-        button.onpointerup = event => {
-            suppressClick = drag?.moved ?? false; drag = null
-            if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId)
-        }
-        button.onpointercancel = () => {drag = null; suppressClick = true}
-        button.onclick = () => {if (suppressClick) {suppressClick = false; return}; const item = items.find(item => item.id === id); if (item) options.onSelect?.({...item})}
-        button.onkeydown = event => {
+        // The stable container is the hover hit area, avoiding enter/leave
+        // retriggers as its child wobbles. Touch uses the native click event.
+        container.onpointerenter = event => {if (event.pointerType !== 'touch' && event.target !== remove) wobble(id, .65)}
+        button.onclick = () => {
+            wobble(id, 1)
             const item = items.find(item => item.id === id)
-            if (!item || options.draggable === false) return
-            const delta = event.shiftKey ? .05 : .01
-            const axes: Record<string, [number, number]> = {ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta]}
-            if (axes[event.key]) {event.preventDefault(); move(id, item.x + axes[event.key][0], item.y + axes[event.key][1])}
+            if (item) options.onSelect?.({...item})
         }
         container.append(button, remove); controls.append(container)
         const control = {container, button, remove}; buttons.set(id, control); return control
     }
     function renderControls() {
         const active = new Set(items.map(item => item.id))
-        for (const [id, control] of buttons) if (!active.has(id)) {control.container.remove(); buttons.delete(id)}
+        for (const [id, control] of buttons) if (!active.has(id)) {resetWobble(id); control.container.remove(); buttons.delete(id)}
         for (const [index, item] of items.entries()) {
             const control = buttons.get(item.id) ?? makeControl(item.id)
             if (controls.children[index] !== control.container) controls.insertBefore(control.container, controls.children[index] ?? null)
             control.button.textContent = item.label
             control.button.title = item.label
             control.button.setAttribute('aria-label', item.label)
-            control.button.setAttribute('aria-description', options.draggable === false ? 'Select attractor' : 'Drag or use arrow keys to move; activate to select')
+            control.button.setAttribute('aria-description', 'Hover or activate to wobble and respond; position is fixed')
             control.remove.setAttribute('aria-label', `Remove ${item.label}`)
             control.container.style.left = `${item.x * 100}%`; control.container.style.top = `${item.y * 100}%`
         }
@@ -160,11 +172,12 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
     }
     function failure(reason: string) {
         if (disposed || failed) return
-        failed = true; renderer?.stopAnimation(); element.dataset.state = 'unavailable'
+        failed = true; stopInteractions(); renderer?.stopAnimation(); element.dataset.state = 'unavailable'
         status.hidden = false; status.textContent = `Orb rendering unavailable: ${reason}`
         options.onError?.(reason)
     }
     async function start() {
+        stopInteractions()
         const attempt = ++generation
         initialized = false; failed = false; uniformValues.clear()
         renderer?.cleanup()
@@ -217,7 +230,7 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         retry() {assertAlive(); return start()},
         destroy() {
             if (disposed) return
-            disposed = true; generation++; observer?.disconnect(); media.removeEventListener('change', syncAnimation)
+            stopInteractions(); disposed = true; generation++; observer?.disconnect(); media.removeEventListener('change', syncAnimation)
             document.removeEventListener('visibilitychange', syncAnimation); renderer?.cleanup(); renderer = null
             buttons.clear(); element.remove()
         },

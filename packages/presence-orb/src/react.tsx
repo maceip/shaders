@@ -18,7 +18,7 @@ export function PresenceOrb(props: PresenceOrbProps) {
         })
         scene.current = instance
         return () => {scene.current = null; instance.destroy()}
-    }, [props.capacity, props.draggable, props.removable, props.respectReducedMotion])
+    }, [props.capacity, props.removable, props.respectReducedMotion])
     useEffect(() => {scene.current?.setLabel(props.label)}, [props.label])
     useEffect(() => {scene.current?.setAttractors(props.attractors ?? [])}, [props.attractors])
     useEffect(() => {scene.current?.setAppearance({energy: props.energy ?? .7, formation: props.formation ?? 1, speed: props.speed ?? 1})}, [props.energy, props.formation, props.speed])

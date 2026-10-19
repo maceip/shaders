@@ -1,6 +1,6 @@
 # @maceip/presence-orb
 
-A continuously animated WebGPU orb with a separate heading and named, draggable
+A continuously animated WebGPU orb with a separate heading and named, fixed-position
 energy attractors. Vanilla JavaScript and React APIs, TypeScript declarations,
 isolated styles, and the renderer are included. No sibling checkout, asset server,
 GIF, telemetry, runtime CDN, or other package is needed by the vanilla entry.
@@ -16,7 +16,7 @@ const orb = createPresenceOrb(document.querySelector('#presence'), {
     {id: 'mcp-22', label: 'MCP interaction', x: .8, y: .4},
   ],
   onSelect: record => openSourceRecord(record.id),
-  onAttractorsChange: records => saveLocalLayout(records),
+  onAttractorsChange: records => saveRemainingRecords(records),
   onError: reason => console.error(reason),
 })
 await orb.ready
@@ -45,7 +45,7 @@ export function Encounter({title}: {title: string}) {
 
 React mounts after hydration and cleans up on unmount, including Strict Mode.
 Replace the controlled array to add, rename, move, reorder, or remove attractors.
-Its change callback reports user drag, keyboard movement, and removal. Programmatic
+Its change callback reports user removal. Programmatic
 setters do not echo this callback, preventing update loops.
 
 ## Contract
@@ -59,8 +59,12 @@ setters do not echo this callback, preventing update loops.
   This is not a 1,000-stream renderer. Large tables should pass the records the
   researcher is currently inspecting. Explicit positions suit dense layouts.
 - `energy`, `formation`: 0–1; `speed`: 0–3. Set with `setAppearance()`.
-- `draggable`, `removable`: default true. Attractors support pointer dragging,
-  keyboard arrows (Shift for larger steps), selection, and accessible removal.
+- Attractors stay anchored. Hover triggers a brief damped wobble; click, tap,
+  Enter or Space retriggers a stronger wobble and calls `onSelect`. The same
+  displacement modulates that attractor's energy extraction and slightly shifts
+  its stream color. Dragging and arrow keys do not reposition it. Layout changes
+  are programmatic only (`x`/`y`). The short interaction loop stops when settled.
+- `removable`: default true; controls accessible removal.
 - `paused`: initial state. `pause()`/`resume()` control animation. The component
   stops animating offscreen, in a hidden document, and for reduced-motion users.
   Set `respectReducedMotion: false` only if the application supplies its own policy.
