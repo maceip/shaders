@@ -32,3 +32,18 @@ export function normalizeAttractors(items: readonly Attractor[], capacity: numbe
         return {...item, x, y, strength, light}
     })
 }
+
+/** Pseudorandom beam identity: independent of labels, array slots and wall time. */
+export function beamProfile(id: string) {
+    let state = 2166136261
+    for (let i = 0; i < id.length; i++) state = Math.imul(state ^ id.charCodeAt(i), 16777619)
+    const random = () => {
+        state = (state + 0x6D2B79F5) | 0
+        let value = Math.imul(state ^ state >>> 15, 1 | state)
+        value ^= value + Math.imul(value ^ value >>> 7, 61 | value)
+        return ((value ^ value >>> 14) >>> 0) / 4294967296
+    }
+    return {beamPhase: random() * Math.PI * 2, beamRate: .25 + random() * .35,
+        beamWidth: .45 + random() * 1.2, beamBend: (random() * 2 - 1) * .35,
+        beamCurl: .4 + random() * 1.2}
+}

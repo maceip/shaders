@@ -69,6 +69,15 @@ export const componentDefinition: GpuShaderDefinition<ComponentProps> = defineSh
 
 /** Shared visual program; only the uniform slot declarations vary by capacity. */
 export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'], dynamic = false): string {
+    // Fixed-slot shader callers also get distinct profiles. The packaged
+    // component supplies profiles seeded by stable record IDs instead of slots.
+    const beamDefaults: Record<string, (index: number) => number> = {
+        beamPhase: i => ((i * .618034 + .193) % 1) * 6.283185,
+        beamRate: i => .25 + ((i * .381966 + .41) % 1) * .35,
+        beamWidth: i => .45 + ((i * .754878 + .21) % 1) * 1.2,
+        beamBend: i => (((i * .56984 + .73) % 1) * 2 - 1) * .35,
+        beamCurl: i => .4 + ((i * .43829 + .32) % 1) * 1.2,
+    }
     return String.raw`
         let t = time + phase;
         let solid = clamp(formation, 0.0, 1.0);
@@ -126,20 +135,26 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
         let weights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'strength' + s).join(', ')});
         let lightWeights = array<f32, ${suffixes.length}>(${suffixes.map(s => 'light' + s).join(', ')});
         ${dynamic ? `let responses = array<f32, ${suffixes.length}>(${suffixes.map(s => 'response' + s).join(', ')});` : ''}
+        ${Object.entries(beamDefaults).map(([name, value]) => `let ${name}s = array<f32, ${suffixes.length}>(${suffixes.map((s, i) => dynamic ? name + s : value(i).toFixed(6)).join(', ')});`).join('\n')}
         // This loop evaluates active analytic vapor fields on the GPU. It does
         // not read or process any GIF, image or frame data.
         for (var i = 0; i < ${dynamic ? `min(i32(attractorCount), ${suffixes.length})` : suffixes.length}; i++) {
             let response = ${dynamic ? 'clamp(responses[i], -1.0, 1.0)' : '0.0'};
             let weight = clamp(weights[i], 0.0, 1.0) * (1.0 + response * 0.32);
             if (weight == 0.0) { continue; }
+            let beamPhase = beamPhases[i];
+            let beamRate = beamRates[i];
+            let beamWidth = beamWidths[i];
+            let beamBend = beamBends[i];
+            let beamCurl = beamCurls[i];
             let destination = (targets[i] - center) * vec2f(aspect, 1.0) / unit - motion;
             let targetDistance = max(length(destination), 1.1);
             let direction = destination / max(length(destination), 0.001);
             let perpendicular = vec2f(-direction.y, direction.x);
             let along = dot(q, direction);
             let across = dot(q, perpendicular);
-            let hue = pow(0.5 + 0.5 * sin(t * 0.945 - 0.46), 6.0);
-            let redShift = 0.5 + 0.5 * sin(t * 1.9);
+            let hue = pow(0.5 + 0.5 * sin(t * (0.75 + beamRate * 0.45) + beamPhase - 0.46), 6.0);
+            let redShift = 0.5 + 0.5 * sin(t * 1.9 + beamPhase);
             let warmLight = mix(vec3f(0.95, 0.48, 0.91), vec3f(0.94, 0.23, 0.41), redShift * 0.55);
             let sourceAngle = atan2(direction.y, direction.x) + response * 0.18 + colorPhase - 0.25 * sin(t * 0.43);
             let sourceBlue = 0.5 + 0.5 * sin(sourceAngle + 2.3 + 0.32 * sin(t * 0.62));
@@ -155,7 +170,7 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
                 directedLight += targetColor * weight * max(lightWeights[i], 0.0) * (pow(facing, 5.0) * (0.12 + 1.30 * grazing));
                 // The surface feeds the same outward phase. A moving dark wake
                 // follows each lifted streak; the sphere remains a shaded volume.
-                let extractionPulse = 0.5 + 0.5 * sin(-t * 0.42 * 37.6991 + f32(i) * 2.31);
+                let extractionPulse = 0.5 + 0.5 * sin(-(t * beamRate + beamPhase) * 37.6991);
                 let sourcePatch = pow(facing, 7.0) * pow(radial, 2.0);
                 depletion += weight * vapor * sourcePatch * (0.20 + 0.24 * extractionPulse);
                 liftedLight += mix(targetColor, vec3f(1.0), 0.25) * weight * vapor * sourcePatch * (0.08 + 0.30 * grazing) * (1.0 - extractionPulse);
@@ -168,8 +183,9 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
             let source = 0.84;
             let reach = max(targetDistance - source, 0.25);
             let flowProgress = clamp((along - source) / reach, 0.0, 1.0);
-            let pathBend = sin(flowProgress * 3.14159) * (0.08 + 0.07 * sin(t * 0.39 + f32(i)));
-            let baseWidth = mix(0.40, 0.12, flowProgress) + 0.09 * sin(flowProgress * 3.14159);
+            let bend = beamBend + 0.12 * beamCurl * sin(t * (0.22 + beamRate) + beamPhase);
+            let pathBend = sin(flowProgress * 3.14159) * bend;
+            let baseWidth = (mix(0.40, 0.12, flowProgress) + 0.09 * sin(flowProgress * 3.14159)) * beamWidth;
             let axisDistance = across - pathBend;
             let envelope = exp(-pow(axisDistance / baseWidth, 2.0));
             let interval = smoothstep(0.64, 1.02, along) * (1.0 - smoothstep(targetDistance, targetDistance + 0.25, along));
@@ -179,20 +195,24 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
             // volumes in those pixels, without changing visible samples.
             if (interval > 0.0 && outside > 0.0) {
               for (var parcel = 0; parcel < 6; parcel++) {
-                let seed = f32(parcel) * 1.618 + f32(i) * 2.31;
-                let age = fract(t * 0.42 + f32(parcel) / 6.0 + f32(i) * 0.173);
+                // Independent packet births and shapes. A new random packet
+                // replaces each faded-out one; no extra particles or CPU loop.
+                let clock = t * beamRate + f32(parcel) / 6.0 + beamPhase;
+                let age = fract(clock);
+                let seed = f32(parcel) * 1.618 + beamPhase * 4.73 + floor(clock) * 7.19;
+                let random = fract(sin(seed * 12.9898) * 43758.5453);
                 let advance = (exp(age * 1.45) - 1.0) / (exp(1.45) - 1.0);
                 let parcelAlong = source + reach * advance;
-                let path = sin(advance * 3.14159) * (0.08 + 0.07 * sin(t * 0.39 + f32(i)));
-                let spread = mix(0.40, 0.10, advance);
-                let parcelAcross = path + sin(seed * 3.7 + age * 3.8) * spread * 0.35;
-                let forward = (along - parcelAlong) / (0.18 + 0.20 * advance);
+                let path = sin(advance * 3.14159) * bend;
+                let spread = mix(0.40, 0.10, advance) * beamWidth * (0.65 + random * 0.65);
+                let parcelAcross = path + sin(seed * 3.7 + age * (2.8 + beamCurl)) * spread * 0.5;
+                let forward = (along - parcelAlong) / ((0.14 + 0.26 * advance) * (0.65 + random * 0.8));
                 let lateral = (across - parcelAcross) / spread;
-                let curl = sin(forward * 2.4 + age * 4.0 + seed) * 0.38;
+                let curl = sin(forward * (1.7 + beamCurl) + age * 4.0 + seed) * 0.30 * beamCurl;
                 let volume = exp(-forward * forward - pow(lateral + curl, 2.0));
-                let wisps = 0.72 + 0.28 * cos(lateral * 4.1 + sin(forward * 2.2 + seed + age * 2.0) * 1.9);
+                let wisps = 0.72 + 0.28 * cos(lateral * (2.5 + beamCurl * 2.0) + sin(forward * 2.2 + seed + age * 2.0) * 1.9);
                 let lifetime = smoothstep(0.0, 0.10, age) * (1.0 - smoothstep(0.88, 1.0, age));
-                transported += volume * wisps * lifetime * (0.75 + 0.25 * sin(seed * 5.3));
+                transported += volume * wisps * lifetime * (0.55 + random * 0.65);
               }
             }
             plumes += targetColor * weight * vapor * (0.10 * envelope + 0.34 * transported) * interval * outside * (0.7 + 0.3 * clamp(lightWeights[i], 0.0, 1.0));
@@ -248,6 +268,7 @@ export function createPresenceOrbDefinition(capacity = 16): GpuShaderDefinition 
         props['strength' + suffix] = {default: 0}
         props['light' + suffix] = {default: 1}
         props['response' + suffix] = {default: 0}
+        for (const [name, value] of Object.entries({beamPhase: Number(suffix) * 2.31, beamRate: .42, beamWidth: 1, beamBend: .08, beamCurl: 1})) props[name + suffix] = {default: value}
     }
     return defineShader({
         name: 'PresenceOrbDynamic' + capacity,

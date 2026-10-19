@@ -1,6 +1,6 @@
 import {shaderRendererGPU, createGpuUniformsMap, rootPassthrough} from 'shaders-core'
 import {createPresenceOrbDefinition} from 'shaders-core/PresenceOrb'
-import {DEFAULT_CAPACITY, MAX_ATTRACTORS, normalizeAttractors, validateCapacity} from './model.js'
+import {DEFAULT_CAPACITY, MAX_ATTRACTORS, beamProfile, normalizeAttractors, validateCapacity} from './model.js'
 import type {Attractor, PositionedAttractor} from './model.js'
 import styles from './style.css?inline'
 export {DEFAULT_CAPACITY, MAX_ATTRACTORS}
@@ -67,7 +67,7 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
     const status = document.createElement('p'); status.className = 'status'; status.setAttribute('role', 'status'); status.textContent = 'Starting orb…'
     scene.append(canvas, label, controls, status); shadow.append(style, scene); host.append(element)
     const media = matchMedia('(prefers-reduced-motion: reduce)')
-    const buttons = new Map<string, {container: HTMLElement; button: HTMLButtonElement; remove: HTMLButtonElement}>()
+    const buttons = new Map<string, {container: HTMLElement; motion: HTMLElement; button: HTMLButtonElement; remove: HTMLButtonElement}>()
     const uniformValues = new Map<string, unknown>()
     // Only interacting controls get a short-lived host animation. Idle motion
     // stays on the GPU; positions and source records are never changed.
@@ -75,8 +75,8 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
     let interactionFrame = 0
     const canAnimate = () => !disposed && initialized && !failed && !paused && !document.hidden && inView && appearance.speed > 0 && !(options.respectReducedMotion !== false && media.matches)
     function resetWobble(id: string) {
-        const button = buttons.get(id)?.button
-        if (button) {button.style.removeProperty('transform'); button.style.removeProperty('filter')}
+        const motion = buttons.get(id)?.motion
+        if (motion) {motion.style.removeProperty('transform'); motion.style.removeProperty('filter')}
         const index = items.findIndex(item => item.id === id)
         if (index >= 0) write(`response${index}`, 0)
         wobbles.delete(id)
@@ -91,14 +91,14 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
         for (const [id, wobble] of wobbles) {
             const elapsed = (now - wobble.start) / 1000
             const index = items.findIndex(item => item.id === id)
-            const button = buttons.get(id)?.button
-            if (elapsed >= .9 || index < 0 || !button) {resetWobble(id); continue}
+            const motion = buttons.get(id)?.motion
+            if (elapsed >= .9 || index < 0 || !motion) {resetWobble(id); continue}
             // A damped oscillation turns, compresses and relaxes around a fixed
             // center. Its signed displacement also modulates that stream only.
             const response = Math.sin(elapsed * 25) * Math.exp(-elapsed * 5) * wobble.amplitude
             wobble.response = response
-            button.style.transform = `rotate(${response * 7}deg) scale(${1 + response * .065},${1 - response * .045})`
-            button.style.filter = `brightness(${1 + Math.abs(response) * .18}) hue-rotate(${response * 7}deg)`
+            motion.style.transform = `rotate(${response * 7}deg) scale(${1 + response * .065},${1 - response * .045})`
+            motion.style.filter = `brightness(${1 + Math.abs(response) * .18}) hue-rotate(${response * 7}deg)`
             write(`response${index}`, response)
         }
         if (wobbles.size) interactionFrame = requestAnimationFrame(animateInteractions)
@@ -134,12 +134,14 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
             write(`strength${index}`, item.strength)
             write(`light${index}`, item.light)
             write(`response${index}`, wobbles.get(item.id)?.response ?? 0)
+            for (const [name, value] of Object.entries(beamProfile(item.id))) write(`${name}${index}`, value)
         })
         write('energy', appearance.energy); write('formation', appearance.formation)
         syncAnimation()
     }
     function makeControl(id: string) {
         const container = document.createElement('div'); container.className = 'attractor'; container.dataset.attractorId = id; container.setAttribute('part', 'attractor')
+        const motion = document.createElement('div'); motion.className = 'attractor-motion'; motion.setAttribute('part', 'attractor-motion')
         const button = document.createElement('button'); button.type = 'button'; button.className = 'target'; button.setAttribute('part', 'target')
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove'; remove.textContent = '×'; remove.setAttribute('part', 'remove')
         remove.hidden = options.removable === false
@@ -152,8 +154,8 @@ export function createPresenceOrb(host: HTMLElement, options: PresenceOrbOptions
             const item = items.find(item => item.id === id)
             if (item) options.onSelect?.({...item})
         }
-        container.append(button, remove); controls.append(container)
-        const control = {container, button, remove}; buttons.set(id, control); return control
+        motion.append(button, remove); container.append(motion); controls.append(container)
+        const control = {container, motion, button, remove}; buttons.set(id, control); return control
     }
     function renderControls() {
         const active = new Set(items.map(item => item.id))

@@ -62,8 +62,12 @@ setters do not echo this callback, preventing update loops.
 - Attractors stay anchored. Hover triggers a brief damped wobble; click, tap,
   Enter or Space retriggers a stronger wobble and calls `onSelect`. The same
   displacement modulates that attractor's energy extraction and slightly shifts
-  its stream color. Dragging and arrow keys do not reposition it. Layout changes
+  its stream color. The removal button wobbles with the object. Dragging and arrow keys do not reposition it. Layout changes
   are programmatic only (`x`/`y`). The short interaction loop stops when settled.
+- Each beam has a pseudorandom profile seeded by its stable ID: independent
+  particle births, speed, width, curvature and turbulence. Renaming or reordering
+  records preserves their beam identity. Six GPU parcels per active beam keep
+  the existing particle budget.
 - `removable`: default true; controls accessible removal.
 - `paused`: initial state. `pause()`/`resume()` control animation. The component
   stops animating offscreen, in a hidden document, and for reduced-motion users.
