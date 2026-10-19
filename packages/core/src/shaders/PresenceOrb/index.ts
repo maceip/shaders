@@ -202,46 +202,45 @@ export function presenceOrbSource(suffixes: readonly string[] = ['A', 'B', 'C'],
                 liftedLight += mix(targetColor, vec3f(1.0), 0.25) * weight * vapor * sourcePatch * (0.08 + 0.30 * grazing) * (1.0 - extractionPulse);
             }
 
-            // Material is transported from the facing surface into the object.
-            // Each overlapping volume has a birth time and advances monotonically
-            // along the path. It accelerates and contracts near the destination;
-            // the turbulence travels with it instead of boiling in a fixed mask.
+            // Every packet follows the same smooth streamline. Independently
+            // displaced packet centers used to create angular joins between
+            // bright lobes; coherent advection keeps the plume continuous.
             let source = 0.84;
             let reach = max(targetDistance - source, 0.25);
             let flowProgress = clamp((along - source) / reach, 0.0, 1.0);
-            let bend = beamBend + 0.12 * beamCurl * sin(t * (0.22 + beamRate) + beamPhase);
-            let pathBend = sin(flowProgress * 3.14159) * bend;
-            let baseWidth = (mix(0.40, 0.12, flowProgress) + 0.09 * sin(flowProgress * 3.14159)) * beamWidth;
+            let travel = flowProgress * 3.0 - t * beamRate * 4.2 + beamPhase;
+            let bend = beamBend * 0.6 + 0.065 * beamCurl * sin(t * beamRate * 0.6 + beamPhase);
+            let pathBend = sin(flowProgress * 3.14159) * (bend + 0.035 * beamCurl * sin(travel));
+            let baseWidth = mix(0.40, 0.13, flowProgress) * beamWidth * (0.94 + 0.06 * sin(travel));
             let axisDistance = across - pathBend;
-            let envelope = exp(-pow(axisDistance / baseWidth, 2.0));
+            let curl = 0.08 * beamCurl * sin(travel * 0.7 + beamPhase);
+            let lateral = axisDistance / baseWidth + curl;
+            let envelope = exp(-lateral * lateral);
+            let diffuse = exp(-lateral * lateral * 0.42);
+            let wisps = 0.84 + 0.16 * cos(lateral * 2.3 + travel * 0.55);
             let interval = smoothstep(0.64, 1.02, along) * (1.0 - smoothstep(targetDistance, targetDistance + 0.25, along));
             let outside = 1.0 - coverage * solid;
             var transported = 0.0;
-            // A zero gate cannot contribute any vapor. Skip the expensive
-            // volumes in those pixels, without changing visible samples.
             if (interval > 0.0 && outside > 0.0) {
               for (var parcel = 0; parcel < 6; parcel++) {
-                // Independent packet births and shapes. A new random packet
-                // replaces each faded-out one; no extra particles or CPU loop.
+                // Random births affect density and length, not disconnected
+                // side-to-side paths. Overlap grows with travel distance so
+                // long connections cannot separate into a chain of blobs.
                 let clock = t * beamRate + f32(parcel) / 6.0 + beamPhase;
                 let age = fract(clock);
                 let seed = f32(parcel) * 1.618 + beamPhase * 4.73 + floor(clock) * 7.19;
                 let random = fract(sin(seed * 12.9898) * 43758.5453);
-                let advance = (exp(age * 1.45) - 1.0) / (exp(1.45) - 1.0);
+                let advance = age * (0.7 + 0.3 * age);
                 let parcelAlong = source + reach * advance;
-                let path = sin(advance * 3.14159) * bend;
-                let spread = mix(0.40, 0.10, advance) * beamWidth * (0.65 + random * 0.65);
-                let parcelAcross = path + sin(seed * 3.7 + age * (2.8 + beamCurl)) * spread * 0.5;
-                let forward = (along - parcelAlong) / ((0.14 + 0.26 * advance) * (0.65 + random * 0.8));
-                let lateral = (across - parcelAcross) / spread;
-                let curl = sin(forward * (1.7 + beamCurl) + age * 4.0 + seed) * 0.30 * beamCurl;
-                let volume = exp(-forward * forward - pow(lateral + curl, 2.0));
-                let wisps = 0.72 + 0.28 * cos(lateral * (2.5 + beamCurl * 2.0) + sin(forward * 2.2 + seed + age * 2.0) * 1.9);
-                let lifetime = smoothstep(0.0, 0.10, age) * (1.0 - smoothstep(0.88, 1.0, age));
-                transported += volume * wisps * lifetime * (0.55 + random * 0.65);
+                let overlap = (0.12 + 0.12 * advance) * reach + 0.12;
+                let forward = (along - parcelAlong) / (overlap * (0.9 + random * 0.2));
+                let spread = 0.9 + random * 0.2;
+                let volume = exp(-forward * forward - lateral * lateral / (spread * spread));
+                let lifetime = smoothstep(0.0, 0.12, age) * (1.0 - smoothstep(0.84, 1.0, age));
+                transported += volume * wisps * lifetime * (0.55 + random * 0.25);
               }
             }
-            plumes += targetColor * weight * vapor * (0.10 * envelope + 0.34 * transported) * interval * outside * (0.7 + 0.3 * clamp(lightWeights[i], 0.0, 1.0));
+            plumes += targetColor * weight * vapor * (0.06 * envelope + 0.05 * diffuse + 0.28 * transported) * interval * outside * (0.7 + 0.3 * clamp(lightWeights[i], 0.0, 1.0));
             let hazeDistance = q - destination * 0.74;
             broadGlow += targetColor * weight * exp(-dot(hazeDistance, hazeDistance) * 3.1) * 0.075;
         }

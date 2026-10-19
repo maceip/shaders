@@ -67,7 +67,8 @@ setters do not echo this callback, preventing update loops.
 - Each beam has a pseudorandom profile seeded by its stable ID: independent
   particle births, speed, width, curvature and turbulence. Renaming or reordering
   records preserves their beam identity. Six GPU parcels per active beam keep
-  the existing particle budget.
+  the existing particle budget. Packets share a continuous curved streamline
+  and overlap along it; random density does not introduce angular path joins.
 - Attractor pill surfaces, rims and glow receive the incoming beam's current
   emission color in the same GPU pass. Their text remains readable and accessible
   in the DOM. Layout measurements update only on resize/label changes; there is
